@@ -254,9 +254,9 @@ function loadSTL() {
   // Heat Sink - brushed aluminum
   const hsGeom = buildGroupGeometry(geometry, heatSinkFaces);
   const hsMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.91, 0.90, 0.87),
-    metalness: 0.95, roughness: 0.22,
-    envMapIntensity: 2.0
+    color: new THREE.Color(0.78, 0.77, 0.74),
+    metalness: 0.7, roughness: 0.45,
+    envMapIntensity: 0.8
   });
   const hsMesh = new THREE.Mesh(hsGeom, hsMat);
   hsMesh.scale.set(scale, scale, scale);
@@ -267,8 +267,8 @@ function loadSTL() {
   // Body - matte black epoxy
   const bodyGeom = buildGroupGeometry(geometry, bodyFaces);
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.03, 0.03, 0.04),
-    metalness: 0.0, roughness: 0.75
+    color: new THREE.Color(0.05, 0.05, 0.06),
+    metalness: 0.0, roughness: 0.82
   });
   const bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
   bodyMesh.scale.set(scale, scale, scale);
@@ -279,9 +279,9 @@ function loadSTL() {
   // Leads - tin-plated copper
   const leadGeom = buildGroupGeometry(geometry, leadFaces);
   const leadMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.82, 0.80, 0.75),
-    metalness: 0.9, roughness: 0.12,
-    envMapIntensity: 2.0
+    color: new THREE.Color(0.72, 0.70, 0.66),
+    metalness: 0.6, roughness: 0.35,
+    envMapIntensity: 0.8
   });
   const leadMesh = new THREE.Mesh(leadGeom, leadMat);
   leadMesh.scale.set(scale, scale, scale);
@@ -290,12 +290,9 @@ function loadSTL() {
   meshes.after.push(leadMesh);
 
   // Better lighting for after panel
-  const backLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
   backLight.position.set(-30, 40, -50);
   scenes[1].add(backLight);
-  const topLight = new THREE.PointLight(0xffeedd, 0.4, 100);
-  topLight.position.set(0, 60, 0);
-  scenes[1].add(topLight);
 }
 
 function animate() {
