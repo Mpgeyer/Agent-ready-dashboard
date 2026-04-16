@@ -172,7 +172,7 @@ function loadSTL() {
   origBB.getCenter(origCenter);
   console.log('Original center:', origCenter.x.toFixed(2), origCenter.y.toFixed(2), origCenter.z.toFixed(2));
 
-  // Center
+  // Center the geometry
   geometry.translate(-origCenter.x, -origCenter.y, -origCenter.z);
   geometry.computeBoundingBox();
 
@@ -188,37 +188,34 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: data-driven zone classification
+  // AFTER: data-driven zones from STL binary analysis
+  // Original coords: Leads X<-15, Body Z>=2 AND X>=-15, Tab=rest
+  // Centered: subtract origCenter
+  const leadsXThresh = -15 - origCenter.x;   // ~ -56.875
+  const bodyZThresh = 2 - origCenter.z;       // ~ -12.069
+
   const positions = geometry.attributes.position;
   const count = positions.count;
   const faceCount = count / 3;
-
-  // Thresholds in CENTERED coordinates:
-  // Original: leads at X < -15, body at Z >= 4
-  // Centered: subtract origCenter
-  const leadsXThresh = -15 - origCenter.x;  // ~ -56.875
-  const bodyZThresh = 4 - origCenter.z;     // ~ -10.069
-
-  console.log('Centered thresholds - leads X <', leadsXThresh.toFixed(2), ', body Z >', bodyZThresh.toFixed(2));
-
   const colors = new Float32Array(count * 3);
   let nL=0, nB=0, nH=0;
 
   for (let f = 0; f < faceCount; f++) {
     const i0=f*3, i1=f*3+1, i2=f*3+2;
+    // Face centroid
     const cx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
     const cz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
 
     let r, g, b;
     if (cx < leadsXThresh) {
-      // LEADS - copper/gold
-      r=0.85; g=0.65; b=0.20; nL++;
+      // LEADS — copper/gold metallic
+      r=0.82; g=0.62; b=0.17; nL++;
     } else if (cz > bodyZThresh) {
-      // BODY - dark epoxy
-      r=0.04; g=0.04; b=0.05; nB++;
+      // BODY — dark matte epoxy
+      r=0.03; g=0.03; b=0.04; nB++;
     } else {
-      // HEAT SINK TAB - bright silver aluminum
-      r=0.88; g=0.89; b=0.91; nH++;
+      // HEAT SINK TAB — brushed aluminum
+      r=0.85; g=0.86; b=0.88; nH++;
     }
 
     for (let v=0; v<3; v++) {
@@ -226,15 +223,17 @@ function loadSTL() {
       colors[idx*3]=r; colors[idx*3+1]=g; colors[idx*3+2]=b;
     }
   }
-  console.log('Zones:', {leads:nL, body:nB, heatsink:nH, total:faceCount});
+  console.log('v9 Zones:', {leads:nL, body:nB, heatsink:nH, total:faceCount});
+  console.log('Thresholds (centered):', {leadsX: leadsXThresh.toFixed(2), bodyZ: bodyZThresh.toFixed(2)});
 
   const afterGeom = geometry.clone();
   afterGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
+  // Different material properties per-zone via vertex colors + overall PBR
   const afterMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    metalness: 0.4,
-    roughness: 0.45
+    metalness: 0.5,
+    roughness: 0.4
   });
 
   const afterMesh = new THREE.Mesh(afterGeom, afterMat);
