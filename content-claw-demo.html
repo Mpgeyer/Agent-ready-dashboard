@@ -166,9 +166,15 @@ function loadSTL() {
   geometry.computeBoundingBox();
   geometry.computeVertexNormals();
 
-  const center = new THREE.Vector3();
-  geometry.boundingBox.getCenter(center);
-  geometry.translate(-center.x, -center.y, -center.z);
+  // Get original bounds BEFORE centering
+  const origBB = geometry.boundingBox.clone();
+  const origCenter = new THREE.Vector3();
+  origBB.getCenter(origCenter);
+  console.log('Original center:', origCenter.x.toFixed(2), origCenter.y.toFixed(2), origCenter.z.toFixed(2));
+
+  // Center
+  geometry.translate(-origCenter.x, -origCenter.y, -origCenter.z);
+  geometry.computeBoundingBox();
 
   const size = new THREE.Vector3();
   geometry.boundingBox.getSize(size);
@@ -182,72 +188,37 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: vertex-colored with smarter zone detection
+  // AFTER: data-driven zone classification
   const positions = geometry.attributes.position;
-  const normals = geometry.attributes.normal;
   const count = positions.count;
-
-  // Find bounding box per axis
-  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity, minZ=Infinity, maxZ=-Infinity;
-  for (let i = 0; i < count; i++) {
-    const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
-    if (x<minX) minX=x; if (x>maxX) maxX=x;
-    if (y<minY) minY=y; if (y>maxY) maxY=y;
-    if (z<minZ) minZ=z; if (z>maxZ) maxZ=z;
-  }
-  const rangeX = maxX-minX, rangeY = maxY-minY, rangeZ = maxZ-minZ;
-  console.log('Bounds:', {X:[minX.toFixed(2),maxX.toFixed(2)], Y:[minY.toFixed(2),maxY.toFixed(2)], Z:[minZ.toFixed(2),maxZ.toFixed(2)]});
-  console.log('Ranges:', {X:rangeX.toFixed(2), Y:rangeY.toFixed(2), Z:rangeZ.toFixed(2)});
-
-  // Sort axes by range to identify: tallest=height, middle=width, shortest=depth
-  const axes = [
-    {name:'X', range:rangeX, getPos:(i)=>positions.getX(i), getNrm:(i)=>normals.getX(i), min:minX},
-    {name:'Y', range:rangeY, getPos:(i)=>positions.getY(i), getNrm:(i)=>normals.getY(i), min:minY},
-    {name:'Z', range:rangeZ, getPos:(i)=>positions.getZ(i), getNrm:(i)=>normals.getZ(i), min:minZ}
-  ].sort((a,b) => b.range - a.range);
-
-  const tall = axes[0];   // height (leads at bottom, tab at top)
-  const wide = axes[1];   // width
-  const thin = axes[2];   // depth/thickness (tab is flat along this)
-
-  console.log('Axes sorted: tall=' + tall.name + '(' + tall.range.toFixed(2) + '), wide=' + wide.name + '(' + wide.range.toFixed(2) + '), thin=' + thin.name + '(' + thin.range.toFixed(2) + ')');
-
   const faceCount = count / 3;
+
+  // Thresholds in CENTERED coordinates:
+  // Original: leads at X < -15, body at Z >= 4
+  // Centered: subtract origCenter
+  const leadsXThresh = -15 - origCenter.x;  // ~ -56.875
+  const bodyZThresh = 4 - origCenter.z;     // ~ -10.069
+
+  console.log('Centered thresholds - leads X <', leadsXThresh.toFixed(2), ', body Z >', bodyZThresh.toFixed(2));
+
   const colors = new Float32Array(count * 3);
   let nL=0, nB=0, nH=0;
 
-  // TO-220 classification using position + normals:
-  // 1. LEADS: faces in the bottom 20% of height
-  // 2. HEAT SINK TAB: faces in the top 50% of height that are FLAT 
-  //    (normal strongly aligned with the thin/depth axis = flat plate faces)
-  // 3. BODY: everything else (the molded plastic package)
-
-  const leadsThreshold = tall.min + tall.range * 0.20;
-  const tabStartHeight = tall.min + tall.range * 0.45;
-
   for (let f = 0; f < faceCount; f++) {
     const i0=f*3, i1=f*3+1, i2=f*3+2;
-    // Face centroid height
-    const h = (tall.getPos(i0) + tall.getPos(i1) + tall.getPos(i2)) / 3;
-    // Average face normal along thin axis (absolute value = how flat/plate-like)
-    const nThin = Math.abs(thin.getNrm(i0) + thin.getNrm(i1) + thin.getNrm(i2)) / 3;
-    // Average face normal along tall axis
-    const nTall = Math.abs(tall.getNrm(i0) + tall.getNrm(i1) + tall.getNrm(i2)) / 3;
+    const cx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
+    const cz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
 
     let r, g, b;
-
-    if (h < leadsThreshold) {
+    if (cx < leadsXThresh) {
       // LEADS - copper/gold
       r=0.85; g=0.65; b=0.20; nL++;
-    } else if (h > tabStartHeight && nThin > 0.5) {
-      // HEAT SINK TAB - flat faces in upper half (normal points along thin axis)
-      r=0.90; g=0.91; b=0.93; nH++;
-    } else if (h > tabStartHeight && nTall > 0.7) {
-      // Also tab: top-facing flat faces at the very top
-      r=0.90; g=0.91; b=0.93; nH++;
-    } else {
+    } else if (cz > bodyZThresh) {
       // BODY - dark epoxy
       r=0.04; g=0.04; b=0.05; nB++;
+    } else {
+      // HEAT SINK TAB - bright silver aluminum
+      r=0.88; g=0.89; b=0.91; nH++;
     }
 
     for (let v=0; v<3; v++) {
