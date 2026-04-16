@@ -125,7 +125,7 @@ function init() {
     controls.autoRotateSpeed = 1.5;
 
     // Lighting
-    const ambient = new THREE.AmbientLight(0x404040, 0.6);
+    const ambient = new THREE.AmbientLight(0x606060, 0.5);
     scene.add(ambient);
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
     dirLight.position.set(50, 80, 50);
@@ -254,9 +254,9 @@ function loadSTL() {
   // Heat Sink - brushed aluminum
   const hsGeom = buildGroupGeometry(geometry, heatSinkFaces);
   const hsMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.78, 0.77, 0.74),
-    metalness: 0.7, roughness: 0.45,
-    envMapIntensity: 0.8
+    color: new THREE.Color(0.88, 0.87, 0.84),
+    metalness: 0.85, roughness: 0.3,
+    envMapIntensity: 1.2
   });
   const hsMesh = new THREE.Mesh(hsGeom, hsMat);
   hsMesh.scale.set(scale, scale, scale);
@@ -267,8 +267,8 @@ function loadSTL() {
   // Body - matte black epoxy
   const bodyGeom = buildGroupGeometry(geometry, bodyFaces);
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.05, 0.05, 0.06),
-    metalness: 0.0, roughness: 0.82
+    color: new THREE.Color(0.015, 0.015, 0.02),
+    metalness: 0.0, roughness: 0.85
   });
   const bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
   bodyMesh.scale.set(scale, scale, scale);
@@ -279,9 +279,9 @@ function loadSTL() {
   // Leads - tin-plated copper
   const leadGeom = buildGroupGeometry(geometry, leadFaces);
   const leadMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.72, 0.70, 0.66),
-    metalness: 0.6, roughness: 0.35,
-    envMapIntensity: 0.8
+    color: new THREE.Color(0.80, 0.78, 0.72),
+    metalness: 0.8, roughness: 0.2,
+    envMapIntensity: 1.2
   });
   const leadMesh = new THREE.Mesh(leadGeom, leadMat);
   leadMesh.scale.set(scale, scale, scale);
@@ -290,9 +290,16 @@ function loadSTL() {
   meshes.after.push(leadMesh);
 
   // Better lighting for after panel
-  const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+  // Enhanced lighting for material contrast
+  const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
   backLight.position.set(-30, 40, -50);
   scenes[1].add(backLight);
+  const rimLight2 = new THREE.DirectionalLight(0xccddff, 0.4);
+  rimLight2.position.set(40, 10, 30);
+  scenes[1].add(rimLight2);
+  const topDown = new THREE.DirectionalLight(0xffffff, 0.3);
+  topDown.position.set(0, 80, 0);
+  scenes[1].add(topDown);
 }
 
 function animate() {
