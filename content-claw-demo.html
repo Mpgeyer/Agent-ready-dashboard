@@ -268,9 +268,8 @@ function loadSTL() {
   // Heat Sink - brushed aluminum
   const hsGeom = buildGroupGeometry(geometry, heatSinkFaces);
   const hsMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.92, 0.91, 0.88),
-    metalness: 0.9, roughness: 0.25,
-    envMapIntensity: 1.5
+    color: 0x4488ff,
+    metalness: 0.0, roughness: 0.5
   });
   const hsMesh = new THREE.Mesh(hsGeom, hsMat);
   hsMesh.scale.set(scale, scale, scale);
@@ -281,8 +280,8 @@ function loadSTL() {
   // Body - matte black epoxy
   const bodyGeom = buildGroupGeometry(geometry, bodyFaces);
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.01, 0.01, 0.015),
-    metalness: 0.0, roughness: 0.9
+    color: 0x111111,
+    metalness: 0.0, roughness: 0.5
   });
   const bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
   bodyMesh.scale.set(scale, scale, scale);
@@ -293,9 +292,8 @@ function loadSTL() {
   // Leads - tin-plated copper
   const leadGeom = buildGroupGeometry(geometry, leadFaces);
   const leadMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.85, 0.75, 0.45),
-    metalness: 0.85, roughness: 0.15,
-    envMapIntensity: 1.5
+    color: 0xffaa22,
+    metalness: 0.0, roughness: 0.5
   });
   const leadMesh = new THREE.Mesh(leadGeom, leadMat);
   leadMesh.scale.set(scale, scale, scale);
