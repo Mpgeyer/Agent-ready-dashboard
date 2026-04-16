@@ -166,15 +166,42 @@ function loadSTL() {
   geometry.computeBoundingBox();
   geometry.computeVertexNormals();
 
-  const origBB = geometry.boundingBox.clone();
-  const origCenter = new THREE.Vector3();
-  origBB.getCenter(origCenter);
+  // BEFORE centering: figure out the axis mapping
+  const bb = geometry.boundingBox;
+  const ranges = {
+    x: bb.max.x - bb.min.x,
+    y: bb.max.y - bb.min.y,
+    z: bb.max.z - bb.min.z
+  };
+  
+  // Sort axes by range to identify: longest=LONG, middle=TALL, shortest=THIN
+  const sorted = Object.entries(ranges).sort((a,b) => b[1] - a[1]);
+  const LONG_AXIS = sorted[0][0];   // longest range ~148 = package width
+  const TALL_AXIS = sorted[1][0];   // middle range ~87 = package height
+  const THIN_AXIS = sorted[2][0];   // shortest range ~31 = package depth
+  
+  console.log('Axis mapping:', {LONG: LONG_AXIS + '=' + sorted[0][1].toFixed(1), 
+    TALL: TALL_AXIS + '=' + sorted[1][1].toFixed(1), 
+    THIN: THIN_AXIS + '=' + sorted[2][1].toFixed(1)});
+  console.log('BB min:', bb.min.x.toFixed(2), bb.min.y.toFixed(2), bb.min.z.toFixed(2));
+  console.log('BB max:', bb.max.x.toFixed(2), bb.max.y.toFixed(2), bb.max.z.toFixed(2));
 
-  geometry.translate(-origCenter.x, -origCenter.y, -origCenter.z);
+  // Get the min/max for each semantic axis
+  const getComp = (v, axis) => axis === 'x' ? v.x : axis === 'y' ? v.y : v.z;
+  const longMin = getComp(bb.min, LONG_AXIS);
+  const longMax = getComp(bb.max, LONG_AXIS);
+  const longRange = longMax - longMin;
+  const thinMin = getComp(bb.min, THIN_AXIS);
+  const thinMax = getComp(bb.max, THIN_AXIS);
+  const thinRange = thinMax - thinMin;
+
+  // Center the geometry
+  geometry.center();
   geometry.computeBoundingBox();
-
+  const bb2 = geometry.boundingBox;
+  
   const size = new THREE.Vector3();
-  geometry.boundingBox.getSize(size);
+  bb2.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
   const scale = 30 / maxDim;
 
@@ -185,17 +212,26 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: Using predictions.jsonl PBR values from Content Claw VLM pipeline
-  // Zone thresholds from STL binary analysis (centered coords)
-  const leadsXThresh = -15 - origCenter.x;
-  const bodyZThresh = 2 - origCenter.z;
-
-  // PBR from predictions.jsonl
-  const ZONES = {
-    leads:    { color: [0.9, 0.7, 0.2],  metalness: 0.95, roughness: 0.1  },  // Copper
-    body:     { color: [0.2, 0.2, 0.2],  metalness: 0.0,  roughness: 0.5  },  // Polycarbonate
-    heatsink: { color: [0.8, 0.8, 0.8],  metalness: 0.9,  roughness: 0.2  },  // Aluminum
-  };
+  // AFTER: zone classification using RELATIVE thresholds
+  // Leads: bottom 11% of LONG axis (X_orig < -15 means < longMin + 0.11*longRange)
+  // Body: top 89% of THIN axis (Z_orig >= 2 means > thinMin + 0.11*thinRange) 
+  // Actually let me compute exact percentages from known original coords:
+  // Leads: X < -15, longRange=148.57, longMin=-32.41 => (-15 - -32.41)/148.57 = 11.7%
+  // Body: Z >= 2, thinRange=30.83, thinMin=-1.35 => (2 - -1.35)/30.83 = 10.9% from bottom, so top 89.1%
+  
+  const leadsThreshPct = 0.12;  // bottom 12% of LONG axis = leads
+  const bodyThreshPct = 0.11;   // top 89% of THIN axis = body (above 11% from bottom)
+  
+  // Convert to centered coordinates
+  const longCenter = (longMin + longMax) / 2;
+  const thinCenter = (thinMin + thinMax) / 2;
+  const leadsThresh = longMin + leadsThreshPct * longRange - longCenter;  // in centered coords
+  const bodyThresh = thinMin + bodyThreshPct * thinRange - thinCenter;    // in centered coords
+  
+  console.log('Thresholds (centered):', {
+    leadsThresh: leadsThresh.toFixed(3) + ' on ' + LONG_AXIS,
+    bodyThresh: bodyThresh.toFixed(3) + ' on ' + THIN_AXIS
+  });
 
   const positions = geometry.attributes.position;
   const count = positions.count;
@@ -203,34 +239,39 @@ function loadSTL() {
   const colors = new Float32Array(count * 3);
   let nL=0, nB=0, nH=0;
 
+  const getAxis = (idx, axis) => {
+    if (axis === 'x') return positions.getX(idx);
+    if (axis === 'y') return positions.getY(idx);
+    return positions.getZ(idx);
+  };
+
   for (let f = 0; f < faceCount; f++) {
     const i0=f*3, i1=f*3+1, i2=f*3+2;
-    const cx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
-    const cz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
+    const cLong = (getAxis(i0, LONG_AXIS) + getAxis(i1, LONG_AXIS) + getAxis(i2, LONG_AXIS)) / 3;
+    const cThin = (getAxis(i0, THIN_AXIS) + getAxis(i1, THIN_AXIS) + getAxis(i2, THIN_AXIS)) / 3;
 
-    let zone;
-    if (cx < leadsXThresh) {
-      zone = ZONES.leads; nL++;
-    } else if (cz > bodyZThresh) {
-      zone = ZONES.body; nB++;
+    let r, g, b;
+    if (cLong < leadsThresh) {
+      // LEADS — Copper from predictions.jsonl
+      r=0.9; g=0.7; b=0.2; nL++;
+    } else if (cThin > bodyThresh) {
+      // BODY — Polycarbonate (dark)
+      r=0.2; g=0.2; b=0.2; nB++;
     } else {
-      zone = ZONES.heatsink; nH++;
+      // HEAT SINK TAB — Aluminum (bright silver)
+      r=0.8; g=0.8; b=0.8; nH++;
     }
 
     for (let v=0; v<3; v++) {
       const idx = (f*3+v)*3;
-      colors[idx]   = zone.color[0];
-      colors[idx+1] = zone.color[1];
-      colors[idx+2] = zone.color[2];
+      colors[idx]=r; colors[idx+1]=g; colors[idx+2]=b;
     }
   }
-  console.log('v10 Zones (predictions.jsonl PBR):', {leads:nL, body:nB, heatsink:nH});
+  console.log('v11 Zones:', {leads:nL, body:nB, heatsink:nH, total:faceCount});
 
   const afterGeom = geometry.clone();
   afterGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  // Weighted average metalness/roughness based on zone proportions
-  // Heatsink dominates (75%), so lean toward its values but compromise
   const afterMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
     metalness: 0.6,
