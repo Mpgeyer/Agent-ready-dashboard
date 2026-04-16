@@ -124,23 +124,19 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambient);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
     dirLight.position.set(50, 80, 50);
-    dirLight.castShadow = true;
     scene.add(dirLight);
-    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.4);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
     if (i === 1) {
-      const keyLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
-      keyLight2.position.set(-40, 60, 30);
-      scene.add(keyLight2);
-      const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      rimLight.position.set(30, -10, -40);
-      scene.add(rimLight);
+      const topLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      topLight.position.set(0, 100, 0);
+      scene.add(topLight);
     }
 
     const grid = new THREE.GridHelper(100, 20, 0x333333, 0x222222);
@@ -166,40 +162,20 @@ function loadSTL() {
   geometry.computeBoundingBox();
   geometry.computeVertexNormals();
 
-  // BEFORE centering: figure out the axis mapping
   const bb = geometry.boundingBox;
-  const ranges = {
-    x: bb.max.x - bb.min.x,
-    y: bb.max.y - bb.min.y,
-    z: bb.max.z - bb.min.z
-  };
+  const dbg = [];
+  dbg.push('BB: x=[' + bb.min.x.toFixed(1) + ',' + bb.max.x.toFixed(1) + '] y=[' + bb.min.y.toFixed(1) + ',' + bb.max.y.toFixed(1) + '] z=[' + bb.min.z.toFixed(1) + ',' + bb.max.z.toFixed(1) + ']');
   
-  // Sort axes by range to identify: longest=LONG, middle=TALL, shortest=THIN
-  const sorted = Object.entries(ranges).sort((a,b) => b[1] - a[1]);
-  const LONG_AXIS = sorted[0][0];   // longest range ~148 = package width
-  const TALL_AXIS = sorted[1][0];   // middle range ~87 = package height
-  const THIN_AXIS = sorted[2][0];   // shortest range ~31 = package depth
-  
-  console.log('Axis mapping:', {LONG: LONG_AXIS + '=' + sorted[0][1].toFixed(1), 
-    TALL: TALL_AXIS + '=' + sorted[1][1].toFixed(1), 
-    THIN: THIN_AXIS + '=' + sorted[2][1].toFixed(1)});
-  console.log('BB min:', bb.min.x.toFixed(2), bb.min.y.toFixed(2), bb.min.z.toFixed(2));
-  console.log('BB max:', bb.max.x.toFixed(2), bb.max.y.toFixed(2), bb.max.z.toFixed(2));
+  const rx = bb.max.x - bb.min.x;
+  const ry = bb.max.y - bb.min.y;
+  const rz = bb.max.z - bb.min.z;
+  dbg.push('Ranges: x=' + rx.toFixed(1) + ' y=' + ry.toFixed(1) + ' z=' + rz.toFixed(1));
 
-  // Get the min/max for each semantic axis
-  const getComp = (v, axis) => axis === 'x' ? v.x : axis === 'y' ? v.y : v.z;
-  const longMin = getComp(bb.min, LONG_AXIS);
-  const longMax = getComp(bb.max, LONG_AXIS);
-  const longRange = longMax - longMin;
-  const thinMin = getComp(bb.min, THIN_AXIS);
-  const thinMax = getComp(bb.max, THIN_AXIS);
-  const thinRange = thinMax - thinMin;
-
-  // Center the geometry
+  // Center
   geometry.center();
   geometry.computeBoundingBox();
   const bb2 = geometry.boundingBox;
-  
+
   const size = new THREE.Vector3();
   bb2.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
@@ -212,26 +188,21 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: zone classification using RELATIVE thresholds
-  // Leads: bottom 11% of LONG axis (X_orig < -15 means < longMin + 0.11*longRange)
-  // Body: top 89% of THIN axis (Z_orig >= 2 means > thinMin + 0.11*thinRange) 
-  // Actually let me compute exact percentages from known original coords:
-  // Leads: X < -15, longRange=148.57, longMin=-32.41 => (-15 - -32.41)/148.57 = 11.7%
-  // Body: Z >= 2, thinRange=30.83, thinMin=-1.35 => (2 - -1.35)/30.83 = 10.9% from bottom, so top 89.1%
+  // AFTER: Zone classification
+  // From raw STL: X is LONG (-32 to 116), Y is TALL (0 to 87), Z is THIN (-1 to 29)
+  // Three.js STLLoader preserves raw coords, then we center.
+  // After centering: X centered by ~41.9, Y by ~43.7, Z by ~14.1
+  // 
+  // LEADS: raw X < -15 => centered X < -15 - 41.875 = -56.875
+  // BODY: raw Z >= 2 => centered Z > 2 - 14.069 = -12.069
+  // HEATSINK: everything else
+  //
+  // Direct thresholds (no axis detection needed — STLLoader preserves axes):
+  const leadsX = -56.875;
+  const bodyZ = -12.069;
   
-  const leadsThreshPct = 0.12;  // bottom 12% of LONG axis = leads
-  const bodyThreshPct = 0.11;   // top 89% of THIN axis = body (above 11% from bottom)
-  
-  // Convert to centered coordinates
-  const longCenter = (longMin + longMax) / 2;
-  const thinCenter = (thinMin + thinMax) / 2;
-  const leadsThresh = longMin + leadsThreshPct * longRange - longCenter;  // in centered coords
-  const bodyThresh = thinMin + bodyThreshPct * thinRange - thinCenter;    // in centered coords
-  
-  console.log('Thresholds (centered):', {
-    leadsThresh: leadsThresh.toFixed(3) + ' on ' + LONG_AXIS,
-    bodyThresh: bodyThresh.toFixed(3) + ' on ' + THIN_AXIS
-  });
+  dbg.push('After center BB: x=[' + bb2.min.x.toFixed(1) + ',' + bb2.max.x.toFixed(1) + '] z=[' + bb2.min.z.toFixed(1) + ',' + bb2.max.z.toFixed(1) + ']');
+  dbg.push('Thresholds: leadsX=' + leadsX.toFixed(1) + ' bodyZ=' + bodyZ.toFixed(1));
 
   const positions = geometry.attributes.position;
   const count = positions.count;
@@ -239,27 +210,21 @@ function loadSTL() {
   const colors = new Float32Array(count * 3);
   let nL=0, nB=0, nH=0;
 
-  const getAxis = (idx, axis) => {
-    if (axis === 'x') return positions.getX(idx);
-    if (axis === 'y') return positions.getY(idx);
-    return positions.getZ(idx);
-  };
-
   for (let f = 0; f < faceCount; f++) {
     const i0=f*3, i1=f*3+1, i2=f*3+2;
-    const cLong = (getAxis(i0, LONG_AXIS) + getAxis(i1, LONG_AXIS) + getAxis(i2, LONG_AXIS)) / 3;
-    const cThin = (getAxis(i0, THIN_AXIS) + getAxis(i1, THIN_AXIS) + getAxis(i2, THIN_AXIS)) / 3;
+    const cx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
+    const cz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
 
     let r, g, b;
-    if (cLong < leadsThresh) {
-      // LEADS — Copper from predictions.jsonl
-      r=0.9; g=0.7; b=0.2; nL++;
-    } else if (cThin > bodyThresh) {
-      // BODY — Polycarbonate (dark)
-      r=0.2; g=0.2; b=0.2; nB++;
+    if (cx < leadsX) {
+      // LEADS — BRIGHT RED diagnostic
+      r=1.0; g=0.15; b=0.15; nL++;
+    } else if (cz > bodyZ) {
+      // BODY — BRIGHT GREEN diagnostic
+      r=0.15; g=0.85; b=0.15; nB++;
     } else {
-      // HEAT SINK TAB — Aluminum (bright silver)
-      r=0.8; g=0.8; b=0.8; nH++;
+      // HEAT SINK — BRIGHT BLUE diagnostic  
+      r=0.2; g=0.4; b=1.0; nH++;
     }
 
     for (let v=0; v<3; v++) {
@@ -267,21 +232,29 @@ function loadSTL() {
       colors[idx]=r; colors[idx+1]=g; colors[idx+2]=b;
     }
   }
-  console.log('v11 Zones:', {leads:nL, body:nB, heatsink:nH, total:faceCount});
+  dbg.push('Faces: leads=' + nL + ' body=' + nB + ' heatsink=' + nH + ' total=' + faceCount);
 
   const afterGeom = geometry.clone();
   afterGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
+  // Use FLAT material — no metalness/roughness to confuse colors
   const afterMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    metalness: 0.6,
-    roughness: 0.3
+    metalness: 0.0,
+    roughness: 0.8
   });
 
   const afterMesh = new THREE.Mesh(afterGeom, afterMat);
   afterMesh.scale.set(scale, scale, scale);
   scenes[1].add(afterMesh);
   meshes.after.push(afterMesh);
+
+  // Show debug overlay ON SCREEN
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;bottom:10px;left:10px;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px 12px;border-radius:6px;z-index:9999;max-width:90vw;white-space:pre-wrap;';
+  overlay.textContent = dbg.join('\n');
+  document.body.appendChild(overlay);
+  console.log(dbg.join('\n'));
 }
 
 function animate() {
