@@ -124,7 +124,6 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    // Brighter lighting
     const ambient = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambient);
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -183,10 +182,12 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: vertex-colored single mesh
+  // AFTER: vertex-colored with smarter zone detection
   const positions = geometry.attributes.position;
+  const normals = geometry.attributes.normal;
   const count = positions.count;
 
+  // Find bounding box per axis
   let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity, minZ=Infinity, maxZ=-Infinity;
   for (let i = 0; i < count; i++) {
     const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
@@ -198,35 +199,57 @@ function loadSTL() {
   console.log('Bounds:', {X:[minX.toFixed(2),maxX.toFixed(2)], Y:[minY.toFixed(2),maxY.toFixed(2)], Z:[minZ.toFixed(2),maxZ.toFixed(2)]});
   console.log('Ranges:', {X:rangeX.toFixed(2), Y:rangeY.toFixed(2), Z:rangeZ.toFixed(2)});
 
-  // Auto-detect tallest axis
-  let getH, hMin, hRange, axisName;
-  if (rangeY >= rangeX && rangeY >= rangeZ) {
-    getH = (i) => positions.getY(i); hMin = minY; hRange = rangeY; axisName = 'Y';
-  } else if (rangeZ >= rangeX && rangeZ >= rangeY) {
-    getH = (i) => positions.getZ(i); hMin = minZ; hRange = rangeZ; axisName = 'Z';
-  } else {
-    getH = (i) => positions.getX(i); hMin = minX; hRange = rangeX; axisName = 'X';
-  }
-  console.log('Tall axis:', axisName, 'range:', hRange.toFixed(2));
+  // Sort axes by range to identify: tallest=height, middle=width, shortest=depth
+  const axes = [
+    {name:'X', range:rangeX, getPos:(i)=>positions.getX(i), getNrm:(i)=>normals.getX(i), min:minX},
+    {name:'Y', range:rangeY, getPos:(i)=>positions.getY(i), getNrm:(i)=>normals.getY(i), min:minY},
+    {name:'Z', range:rangeZ, getPos:(i)=>positions.getZ(i), getNrm:(i)=>normals.getZ(i), min:minZ}
+  ].sort((a,b) => b.range - a.range);
 
-  const leadsTop = hMin + hRange * 0.25;
-  const bodyTop  = hMin + hRange * 0.60;
+  const tall = axes[0];   // height (leads at bottom, tab at top)
+  const wide = axes[1];   // width
+  const thin = axes[2];   // depth/thickness (tab is flat along this)
 
-  const colors = new Float32Array(count * 3);
+  console.log('Axes sorted: tall=' + tall.name + '(' + tall.range.toFixed(2) + '), wide=' + wide.name + '(' + wide.range.toFixed(2) + '), thin=' + thin.name + '(' + thin.range.toFixed(2) + ')');
+
   const faceCount = count / 3;
+  const colors = new Float32Array(count * 3);
   let nL=0, nB=0, nH=0;
+
+  // TO-220 classification using position + normals:
+  // 1. LEADS: faces in the bottom 20% of height
+  // 2. HEAT SINK TAB: faces in the top 50% of height that are FLAT 
+  //    (normal strongly aligned with the thin/depth axis = flat plate faces)
+  // 3. BODY: everything else (the molded plastic package)
+
+  const leadsThreshold = tall.min + tall.range * 0.20;
+  const tabStartHeight = tall.min + tall.range * 0.45;
 
   for (let f = 0; f < faceCount; f++) {
     const i0=f*3, i1=f*3+1, i2=f*3+2;
-    const ch = (getH(i0) + getH(i1) + getH(i2)) / 3;
+    // Face centroid height
+    const h = (tall.getPos(i0) + tall.getPos(i1) + tall.getPos(i2)) / 3;
+    // Average face normal along thin axis (absolute value = how flat/plate-like)
+    const nThin = Math.abs(thin.getNrm(i0) + thin.getNrm(i1) + thin.getNrm(i2)) / 3;
+    // Average face normal along tall axis
+    const nTall = Math.abs(tall.getNrm(i0) + tall.getNrm(i1) + tall.getNrm(i2)) / 3;
+
     let r, g, b;
-    if (ch < leadsTop) {
+
+    if (h < leadsThreshold) {
+      // LEADS - copper/gold
       r=0.85; g=0.65; b=0.20; nL++;
-    } else if (ch > bodyTop) {
+    } else if (h > tabStartHeight && nThin > 0.5) {
+      // HEAT SINK TAB - flat faces in upper half (normal points along thin axis)
+      r=0.90; g=0.91; b=0.93; nH++;
+    } else if (h > tabStartHeight && nTall > 0.7) {
+      // Also tab: top-facing flat faces at the very top
       r=0.90; g=0.91; b=0.93; nH++;
     } else {
+      // BODY - dark epoxy
       r=0.04; g=0.04; b=0.05; nB++;
     }
+
     for (let v=0; v<3; v++) {
       const idx = f*3+v;
       colors[idx*3]=r; colors[idx*3+1]=g; colors[idx*3+2]=b;
