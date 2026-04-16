@@ -166,13 +166,10 @@ function loadSTL() {
   geometry.computeBoundingBox();
   geometry.computeVertexNormals();
 
-  // Get original bounds BEFORE centering
   const origBB = geometry.boundingBox.clone();
   const origCenter = new THREE.Vector3();
   origBB.getCenter(origCenter);
-  console.log('Original center:', origCenter.x.toFixed(2), origCenter.y.toFixed(2), origCenter.z.toFixed(2));
 
-  // Center the geometry
   geometry.translate(-origCenter.x, -origCenter.y, -origCenter.z);
   geometry.computeBoundingBox();
 
@@ -188,11 +185,17 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: data-driven zones from STL binary analysis
-  // Original coords: Leads X<-15, Body Z>=2 AND X>=-15, Tab=rest
-  // Centered: subtract origCenter
-  const leadsXThresh = -15 - origCenter.x;   // ~ -56.875
-  const bodyZThresh = 2 - origCenter.z;       // ~ -12.069
+  // AFTER: Using predictions.jsonl PBR values from Content Claw VLM pipeline
+  // Zone thresholds from STL binary analysis (centered coords)
+  const leadsXThresh = -15 - origCenter.x;
+  const bodyZThresh = 2 - origCenter.z;
+
+  // PBR from predictions.jsonl
+  const ZONES = {
+    leads:    { color: [0.9, 0.7, 0.2],  metalness: 0.95, roughness: 0.1  },  // Copper
+    body:     { color: [0.2, 0.2, 0.2],  metalness: 0.0,  roughness: 0.5  },  // Polycarbonate
+    heatsink: { color: [0.8, 0.8, 0.8],  metalness: 0.9,  roughness: 0.2  },  // Aluminum
+  };
 
   const positions = geometry.attributes.position;
   const count = positions.count;
@@ -202,38 +205,36 @@ function loadSTL() {
 
   for (let f = 0; f < faceCount; f++) {
     const i0=f*3, i1=f*3+1, i2=f*3+2;
-    // Face centroid
     const cx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
     const cz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
 
-    let r, g, b;
+    let zone;
     if (cx < leadsXThresh) {
-      // LEADS — copper/gold metallic
-      r=0.82; g=0.62; b=0.17; nL++;
+      zone = ZONES.leads; nL++;
     } else if (cz > bodyZThresh) {
-      // BODY — dark matte epoxy
-      r=0.03; g=0.03; b=0.04; nB++;
+      zone = ZONES.body; nB++;
     } else {
-      // HEAT SINK TAB — brushed aluminum
-      r=0.85; g=0.86; b=0.88; nH++;
+      zone = ZONES.heatsink; nH++;
     }
 
     for (let v=0; v<3; v++) {
-      const idx = f*3+v;
-      colors[idx*3]=r; colors[idx*3+1]=g; colors[idx*3+2]=b;
+      const idx = (f*3+v)*3;
+      colors[idx]   = zone.color[0];
+      colors[idx+1] = zone.color[1];
+      colors[idx+2] = zone.color[2];
     }
   }
-  console.log('v9 Zones:', {leads:nL, body:nB, heatsink:nH, total:faceCount});
-  console.log('Thresholds (centered):', {leadsX: leadsXThresh.toFixed(2), bodyZ: bodyZThresh.toFixed(2)});
+  console.log('v10 Zones (predictions.jsonl PBR):', {leads:nL, body:nB, heatsink:nH});
 
   const afterGeom = geometry.clone();
   afterGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  // Different material properties per-zone via vertex colors + overall PBR
+  // Weighted average metalness/roughness based on zone proportions
+  // Heatsink dominates (75%), so lean toward its values but compromise
   const afterMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    metalness: 0.5,
-    roughness: 0.4
+    metalness: 0.6,
+    roughness: 0.3
   });
 
   const afterMesh = new THREE.Mesh(afterGeom, afterMat);
