@@ -116,7 +116,7 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMappingExposure = 1.4;
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -124,25 +124,26 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    // Lighting
-    const ambient = new THREE.AmbientLight(0x606060, 0.5);
+    // Brighter lighting
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambient);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(50, 80, 50);
     dirLight.castShadow = true;
     scene.add(dirLight);
-    const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.4);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
     if (i === 1) {
-      // Green rim light for "after" panel
-      const rimLight = new THREE.PointLight(0x76b900, 0.5, 100);
-      rimLight.position.set(0, 40, -30);
+      const keyLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
+      keyLight2.position.set(-40, 60, 30);
+      scene.add(keyLight2);
+      const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      rimLight.position.set(30, -10, -40);
       scene.add(rimLight);
     }
 
-    // Grid
     const grid = new THREE.GridHelper(100, 20, 0x333333, 0x222222);
     grid.position.y = -15;
     scene.add(grid);
@@ -166,31 +167,26 @@ function loadSTL() {
   geometry.computeBoundingBox();
   geometry.computeVertexNormals();
 
-  // Center
   const center = new THREE.Vector3();
   geometry.boundingBox.getCenter(center);
   geometry.translate(-center.x, -center.y, -center.z);
 
-  // Scale to fit
   const size = new THREE.Vector3();
   geometry.boundingBox.getSize(size);
   const maxDim = Math.max(size.x, size.y, size.z);
   const scale = 30 / maxDim;
 
   // BEFORE: flat gray
-  const beforeMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.6, metalness: 0.1, flatShading: false });
+  const beforeMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.6, metalness: 0.1 });
   const beforeMesh = new THREE.Mesh(geometry.clone(), beforeMat);
   beforeMesh.scale.set(scale, scale, scale);
-  beforeMesh.castShadow = true;
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: realistic TO-220 materials — auto-detect primary axis
+  // AFTER: vertex-colored single mesh
   const positions = geometry.attributes.position;
-  const normals = geometry.attributes.normal;
   const count = positions.count;
 
-  // Find bounding box to determine model orientation
   let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity, minZ=Infinity, maxZ=-Infinity;
   for (let i = 0; i < count; i++) {
     const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
@@ -199,119 +195,58 @@ function loadSTL() {
     if (z<minZ) minZ=z; if (z>maxZ) maxZ=z;
   }
   const rangeX = maxX-minX, rangeY = maxY-minY, rangeZ = maxZ-minZ;
-  console.log('Geometry bounds:', {minX,maxX,minY,maxY,minZ,maxZ});
-  console.log('Ranges:', {rangeX, rangeY, rangeZ});
+  console.log('Bounds:', {X:[minX.toFixed(2),maxX.toFixed(2)], Y:[minY.toFixed(2),maxY.toFixed(2)], Z:[minZ.toFixed(2),maxZ.toFixed(2)]});
+  console.log('Ranges:', {X:rangeX.toFixed(2), Y:rangeY.toFixed(2), Z:rangeZ.toFixed(2)});
 
-  // TO-220 is tall+narrow: longest axis = height (leads at bottom, tab at top)
-  // Detect which axis is the "tall" axis
-  let getH, getW, getD; // height, width, depth accessors
-  let hMin, hRange;
+  // Auto-detect tallest axis
+  let getH, hMin, hRange, axisName;
   if (rangeY >= rangeX && rangeY >= rangeZ) {
-    getH = (i) => positions.getY(i);
-    hMin = minY; hRange = rangeY;
-    console.log('Primary axis: Y (height)');
+    getH = (i) => positions.getY(i); hMin = minY; hRange = rangeY; axisName = 'Y';
   } else if (rangeZ >= rangeX && rangeZ >= rangeY) {
-    getH = (i) => positions.getZ(i);
-    hMin = minZ; hRange = rangeZ;
-    console.log('Primary axis: Z (height)');
+    getH = (i) => positions.getZ(i); hMin = minZ; hRange = rangeZ; axisName = 'Z';
   } else {
-    getH = (i) => positions.getX(i);
-    hMin = minX; hRange = rangeX;
-    console.log('Primary axis: X (height)');
+    getH = (i) => positions.getX(i); hMin = minX; hRange = rangeX; axisName = 'X';
   }
+  console.log('Tall axis:', axisName, 'range:', hRange.toFixed(2));
 
-  // Split faces into 3 zones along the tall axis
-  // Leads: bottom 25%, Body: 25-60%, Heat sink/tab: top 40%
   const leadsTop = hMin + hRange * 0.25;
   const bodyTop  = hMin + hRange * 0.60;
 
+  const colors = new Float32Array(count * 3);
   const faceCount = count / 3;
-  const heatSinkFaces = [], bodyFaces = [], leadFaces = [];
+  let nL=0, nB=0, nH=0;
 
   for (let f = 0; f < faceCount; f++) {
-    const i0 = f*3, i1 = f*3+1, i2 = f*3+2;
+    const i0=f*3, i1=f*3+1, i2=f*3+2;
     const ch = (getH(i0) + getH(i1) + getH(i2)) / 3;
-
+    let r, g, b;
     if (ch < leadsTop) {
-      leadFaces.push(f);
+      r=0.85; g=0.65; b=0.20; nL++;
     } else if (ch > bodyTop) {
-      heatSinkFaces.push(f);
+      r=0.90; g=0.91; b=0.93; nH++;
     } else {
-      bodyFaces.push(f);
+      r=0.04; g=0.04; b=0.05; nB++;
+    }
+    for (let v=0; v<3; v++) {
+      const idx = f*3+v;
+      colors[idx*3]=r; colors[idx*3+1]=g; colors[idx*3+2]=b;
     }
   }
-  console.log('Zone split:', {leads: leadFaces.length, body: bodyFaces.length, heatsink: heatSinkFaces.length, total: faceCount});
+  console.log('Zones:', {leads:nL, body:nB, heatsink:nH, total:faceCount});
 
-  function buildGroupGeometry(srcGeom, faceIndices) {
-    const vCount = faceIndices.length * 3;
-    const pos = new Float32Array(vCount * 3);
-    const nrm = new Float32Array(vCount * 3);
-    let vi = 0;
-    for (const f of faceIndices) {
-      for (let v = 0; v < 3; v++) {
-        const si = f * 3 + v;
-        pos[vi*3]   = srcGeom.attributes.position.getX(si);
-        pos[vi*3+1] = srcGeom.attributes.position.getY(si);
-        pos[vi*3+2] = srcGeom.attributes.position.getZ(si);
-        nrm[vi*3]   = srcGeom.attributes.normal.getX(si);
-        nrm[vi*3+1] = srcGeom.attributes.normal.getY(si);
-        nrm[vi*3+2] = srcGeom.attributes.normal.getZ(si);
-        vi++;
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-    return g;
-  }
+  const afterGeom = geometry.clone();
+  afterGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  // Heat Sink - brushed aluminum
-  const hsGeom = buildGroupGeometry(geometry, heatSinkFaces);
-  const hsMat = new THREE.MeshStandardMaterial({
-    color: 0x4488ff,
-    metalness: 0.0, roughness: 0.5
+  const afterMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    metalness: 0.4,
+    roughness: 0.45
   });
-  const hsMesh = new THREE.Mesh(hsGeom, hsMat);
-  hsMesh.scale.set(scale, scale, scale);
-  hsMesh.castShadow = true;
-  scenes[1].add(hsMesh);
-  meshes.after.push(hsMesh);
 
-  // Body - matte black epoxy
-  const bodyGeom = buildGroupGeometry(geometry, bodyFaces);
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0x111111,
-    metalness: 0.0, roughness: 0.5
-  });
-  const bodyMesh = new THREE.Mesh(bodyGeom, bodyMat);
-  bodyMesh.scale.set(scale, scale, scale);
-  bodyMesh.castShadow = true;
-  scenes[1].add(bodyMesh);
-  meshes.after.push(bodyMesh);
-
-  // Leads - tin-plated copper
-  const leadGeom = buildGroupGeometry(geometry, leadFaces);
-  const leadMat = new THREE.MeshStandardMaterial({
-    color: 0xffaa22,
-    metalness: 0.0, roughness: 0.5
-  });
-  const leadMesh = new THREE.Mesh(leadGeom, leadMat);
-  leadMesh.scale.set(scale, scale, scale);
-  leadMesh.castShadow = true;
-  scenes[1].add(leadMesh);
-  meshes.after.push(leadMesh);
-
-  // Better lighting for after panel
-  // Enhanced lighting for material contrast
-  const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
-  backLight.position.set(-30, 40, -50);
-  scenes[1].add(backLight);
-  const rimLight2 = new THREE.DirectionalLight(0xccddff, 0.4);
-  rimLight2.position.set(40, 10, 30);
-  scenes[1].add(rimLight2);
-  const topDown = new THREE.DirectionalLight(0xffffff, 0.3);
-  topDown.position.set(0, 80, 0);
-  scenes[1].add(topDown);
+  const afterMesh = new THREE.Mesh(afterGeom, afterMat);
+  afterMesh.scale.set(scale, scale, scale);
+  scenes[1].add(afterMesh);
+  meshes.after.push(afterMesh);
 }
 
 function animate() {
@@ -320,8 +255,6 @@ function animate() {
     c.update();
     renderers[i].render(scenes[i], cameras[i]);
   });
-
-  // Sync cameras
   if (controlsArr[0] && controlsArr[1]) {
     cameras[1].position.copy(cameras[0].position);
     cameras[1].rotation.copy(cameras[0].rotation);
