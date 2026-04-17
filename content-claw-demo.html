@@ -42,7 +42,7 @@ canvas { display: block; }
 
 <div class="header">
   <div>
-    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v27</span></h1>
+    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v28</span></h1>
     <div class="subtitle">STEP → STL → SimReady USD → VLM Material Classification | All Local, No NVCF</div>
   </div>
   <div class="nvidia-badge">NVIDIA</div>
@@ -242,65 +242,45 @@ function loadSTL() {
     else { heatsinkIdx.push(f); }
   }
 
-  function buildZoneMesh(faceIndices, material) {
-    var newPos = new Float32Array(faceIndices.length * 9);
-    var newNorm = new Float32Array(faceIndices.length * 9);
-    for (var i = 0; i < faceIndices.length; i++) {
-      var f = faceIndices[i];
-      for (var v = 0; v < 3; v++) {
-        var srcIdx = f * 3 + v;
-        var dstIdx = i * 9 + v * 3;
-        newPos[dstIdx]     = positions.getX(srcIdx);
-        newPos[dstIdx + 1] = positions.getY(srcIdx);
-        newPos[dstIdx + 2] = positions.getZ(srcIdx);
-        newNorm[dstIdx]     = normals.getX(srcIdx);
-        newNorm[dstIdx + 1] = normals.getY(srcIdx);
-        newNorm[dstIdx + 2] = normals.getZ(srcIdx);
-      }
+  // Optimize lookup with Sets
+  var leadsSet = new Set(leadsIdx);
+  var bodySet = new Set(bodyIdx);
+
+  // Paint vertex colors directly onto the geometry
+  var colors = new Float32Array(vertexCount * 3);
+  var greenBody = [0.08, 0.55, 0.18];   // vivid green
+  var silverHS  = [0.82, 0.84, 0.86];   // aluminum
+  var copperLd  = [0.85, 0.55, 0.20];   // copper
+
+  for (var f = 0; f < faceCount; f++) {
+    var zone;
+    if (leadsSet.has(f)) zone = copperLd;
+    else if (bodySet.has(f)) zone = greenBody;
+    else zone = silverHS;
+    for (var v = 0; v < 3; v++) {
+      var idx = f * 3 + v;
+      colors[idx * 3]     = zone[0];
+      colors[idx * 3 + 1] = zone[1];
+      colors[idx * 3 + 2] = zone[2];
     }
-    var geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
-    geom.setAttribute('normal', new THREE.BufferAttribute(newNorm, 3));
-    var mesh = new THREE.Mesh(geom, material);
-    mesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
-    return mesh;
   }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  // Aluminum heat sink — bright brushed aluminum
-  var heatsinkMat = new THREE.MeshPhongMaterial({
-    color: new THREE.Color(0.82, 0.84, 0.86),
-    specular: new THREE.Color(0.9, 0.9, 0.9),
-    shininess: 60,
+  // Use vertex colors with Phong material — immune to env map
+  var afterMat = new THREE.MeshPhongMaterial({
+    vertexColors: true,
+    specular: new THREE.Color(0.2, 0.2, 0.2),
+    shininess: 40,
     side: THREE.DoubleSide
   });
 
-  // Component body — vivid green epoxy (NO env map to avoid gray wash)
-  var bodyMat = new THREE.MeshPhongMaterial({
-    color: new THREE.Color(0.08, 0.55, 0.18),
-    specular: new THREE.Color(0.15, 0.15, 0.15),
-    shininess: 30,
-    side: THREE.DoubleSide
-  });
+  var afterMesh = new THREE.Mesh(geometry.clone(), afterMat);
+  afterMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
+  scenes[1].add(afterMesh);
+  meshes.after.push(afterMesh);
 
-  // Copper/tin leads — warm metallic
-  var leadsMat = new THREE.MeshPhongMaterial({
-    color: new THREE.Color(0.85, 0.55, 0.20),
-    specular: new THREE.Color(0.6, 0.4, 0.2),
-    shininess: 80,
-    side: THREE.DoubleSide
-  });
-
-  var hsMesh = buildZoneMesh(heatsinkIdx, heatsinkMat);
-  var bdMesh = buildZoneMesh(bodyIdx, bodyMat);
-  var ldMesh = buildZoneMesh(leadsIdx, leadsMat);
-
-  scenes[1].add(hsMesh);
-  scenes[1].add(bdMesh);
-  scenes[1].add(ldMesh);
-  meshes.after.push(hsMesh, bdMesh, ldMesh);
-
-  console.log('v27 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
-  document.getElementById('version-tag').textContent = 'v27 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
+  console.log('v28 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
+  document.getElementById('version-tag').textContent = 'v28 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
 }
 
 function animate() {
