@@ -42,7 +42,7 @@ canvas { display: block; }
 
 <div class="header">
   <div>
-    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v22</span></h1>
+    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v23</span></h1>
     <div class="subtitle">STEP → STL → SimReady USD → VLM Material Classification | All Local, No NVCF</div>
   </div>
   <div class="nvidia-badge">NVIDIA</div>
@@ -222,10 +222,10 @@ function loadSTL() {
   // AFTER: per-zone materials (3 separate meshes)
   // Thresholds in RAW STL coords (from Python binary analysis):
   //   LEADS: raw X < -15
-  //   BODY: raw Z >= 2
-  //   HEATSINK: everything else
+  //   BODY: raw Y > 12 (main epoxy block + heatsink tab above base)
+  //   HEATSINK: raw Y <= 12 (thin flat bottom tab)
   var leadsThreshX = -15 - cx;
-  var bodyThreshZ = 2 - cz;
+  var bodyThreshY = 12 - cy;
 
   var positions = geometry.attributes.position;
   var normals = geometry.attributes.normal;
@@ -237,9 +237,9 @@ function loadSTL() {
   for (var f = 0; f < faceCount; f++) {
     var i0 = f * 3, i1 = f * 3 + 1, i2 = f * 3 + 2;
     var fcx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
-    var fcz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
+    var fcy = (positions.getY(i0) + positions.getY(i1) + positions.getY(i2)) / 3;
     if (fcx < leadsThreshX) { leadsIdx.push(f); }
-    else if (fcz > bodyThreshZ) { bodyIdx.push(f); }
+    else if (fcy > bodyThreshY) { bodyIdx.push(f); }
     else { heatsinkIdx.push(f); }
   }
 
@@ -303,8 +303,8 @@ function loadSTL() {
   scenes[1].add(ldMesh);
   meshes.after.push(hsMesh, bdMesh, ldMesh);
 
-  console.log('v22 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
-  document.getElementById('version-tag').textContent = 'v22 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
+  console.log('v23 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
+  document.getElementById('version-tag').textContent = 'v23 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
 }
 
 function animate() {
