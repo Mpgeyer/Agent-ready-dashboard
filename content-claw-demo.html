@@ -117,7 +117,7 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
+    renderer.toneMappingExposure = 1.6;
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -125,22 +125,25 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    var ambient = new THREE.AmbientLight(0xffffff, 0.8);
+    var ambient = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambient);
-    var dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    var dirLight = new THREE.DirectionalLight(0xfff8f0, 1.2);
     dirLight.position.set(50, 80, 50);
     scene.add(dirLight);
-    var fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    var fillLight = new THREE.DirectionalLight(0xe8e0d8, 0.4);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
     if (i === 1) {
-      var topLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      var topLight = new THREE.DirectionalLight(0xffffff, 0.8);
       topLight.position.set(0, 100, 0);
       scene.add(topLight);
-      var rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
+      var rimLight = new THREE.DirectionalLight(0xfff0e0, 0.5);
       rimLight.position.set(-50, 10, 50);
       scene.add(rimLight);
+      var backLight = new THREE.DirectionalLight(0xe0e8ff, 0.3);
+      backLight.position.set(30, 40, -60);
+      scene.add(backLight);
     }
 
     var grid = new THREE.GridHelper(100, 20, 0x333333, 0x222222);
@@ -215,11 +218,11 @@ function loadSTL() {
 
     var r, g, b;
     if (fcx < leadsThreshX) {
-      r = 0.90; g = 0.70; b = 0.20; nL++;
+      r = 0.85; g = 0.63; b = 0.35; nL++;
     } else if (fcz > bodyThreshZ) {
-      r = 0.15; g = 0.15; b = 0.18; nB++;
+      r = 0.05; g = 0.05; b = 0.07; nB++;
     } else {
-      r = 0.82; g = 0.83; b = 0.85; nH++;
+      r = 0.88; g = 0.89; b = 0.91; nH++;
     }
 
     for (var v = 0; v < 3; v++) {
@@ -236,9 +239,10 @@ function loadSTL() {
 
   var afterMat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    metalness: 0.3,
-    roughness: 0.5,
-    side: THREE.DoubleSide
+    metalness: 0.6,
+    roughness: 0.35,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.2
   });
 
   var afterMesh = new THREE.Mesh(afterGeom, afterMat);
