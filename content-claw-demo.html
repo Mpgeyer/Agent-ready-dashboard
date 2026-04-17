@@ -42,7 +42,7 @@ canvas { display: block; }
 
 <div class="header">
   <div>
-    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v29</span></h1>
+    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v30</span></h1>
     <div class="subtitle">STEP → STL → SimReady USD → VLM Material Classification | All Local, No NVCF</div>
   </div>
   <div class="nvidia-badge">NVIDIA</div>
@@ -140,7 +140,10 @@ function init() {
     var floorPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(0.3, 0.3, 0.3), side: THREE.DoubleSide}));
     floorPanel.position.set(0, -80, 0); floorPanel.rotation.x = Math.PI / 2; envScene.add(floorPanel);
     var envMap = pmremGen.fromScene(envScene, 0.04).texture;
-    scene.environment = envMap;
+    // Only apply env map to Before scene (i=0). After scene uses direct lighting only.
+    if (i === 0) {
+      scene.environment = envMap;
+    }
     pmremGen.dispose();
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -289,8 +292,8 @@ function loadSTL() {
   scenes[1].add(afterMesh);
   meshes.after.push(afterMesh);
 
-  console.log('v29 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
-  document.getElementById('version-tag').textContent = 'v29 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
+  console.log('v30 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
+  document.getElementById('version-tag').textContent = 'v30 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
 }
 
 function animate() {
