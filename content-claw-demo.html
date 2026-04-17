@@ -196,61 +196,88 @@ function loadSTL() {
   scenes[0].add(beforeMesh);
   meshes.before = beforeMesh;
 
-  // AFTER: vertex colors
+  // AFTER: per-zone materials (3 separate meshes)
   // Thresholds in RAW STL coords (from Python binary analysis):
   //   LEADS: raw X < -15
   //   BODY: raw Z >= 2
   //   HEATSINK: everything else
-  // Convert to CENTERED coords by subtracting center offset:
-  var leadsThreshX = -15 - cx;  // should be about -56.9
-  var bodyThreshZ = 2 - cz;     // should be about -12.1
+  var leadsThreshX = -15 - cx;
+  var bodyThreshZ = 2 - cz;
 
   var positions = geometry.attributes.position;
+  var normals = geometry.attributes.normal;
   var vertexCount = positions.count;
   var faceCount = Math.floor(vertexCount / 3);
-  var colors = new Float32Array(vertexCount * 3);
-  var nL = 0, nB = 0, nH = 0;
 
+  // Classify each face into a zone
+  var leadsIdx = [], bodyIdx = [], heatsinkIdx = [];
   for (var f = 0; f < faceCount; f++) {
     var i0 = f * 3, i1 = f * 3 + 1, i2 = f * 3 + 2;
     var fcx = (positions.getX(i0) + positions.getX(i1) + positions.getX(i2)) / 3;
     var fcz = (positions.getZ(i0) + positions.getZ(i1) + positions.getZ(i2)) / 3;
-
-    var r, g, b;
-    if (fcx < leadsThreshX) {
-      r = 0.85; g = 0.63; b = 0.35; nL++;
-    } else if (fcz > bodyThreshZ) {
-      r = 0.05; g = 0.05; b = 0.07; nB++;
-    } else {
-      r = 0.88; g = 0.89; b = 0.91; nH++;
-    }
-
-    for (var v = 0; v < 3; v++) {
-      var idx = (f * 3 + v) * 3;
-      colors[idx] = r;
-      colors[idx + 1] = g;
-      colors[idx + 2] = b;
-    }
+    if (fcx < leadsThreshX) { leadsIdx.push(f); }
+    else if (fcz > bodyThreshZ) { bodyIdx.push(f); }
+    else { heatsinkIdx.push(f); }
   }
 
-  var afterGeom = geometry.clone();
-  afterGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  afterGeom.computeVertexNormals();
+  function buildZoneMesh(faceIndices, material) {
+    var newPos = new Float32Array(faceIndices.length * 9);
+    var newNorm = new Float32Array(faceIndices.length * 9);
+    for (var i = 0; i < faceIndices.length; i++) {
+      var f = faceIndices[i];
+      for (var v = 0; v < 3; v++) {
+        var srcIdx = f * 3 + v;
+        var dstIdx = i * 9 + v * 3;
+        newPos[dstIdx]     = positions.getX(srcIdx);
+        newPos[dstIdx + 1] = positions.getY(srcIdx);
+        newPos[dstIdx + 2] = positions.getZ(srcIdx);
+        newNorm[dstIdx]     = normals.getX(srcIdx);
+        newNorm[dstIdx + 1] = normals.getY(srcIdx);
+        newNorm[dstIdx + 2] = normals.getZ(srcIdx);
+      }
+    }
+    var geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
+    geom.setAttribute('normal', new THREE.BufferAttribute(newNorm, 3));
+    var mesh = new THREE.Mesh(geom, material);
+    mesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
+    return mesh;
+  }
 
-  var afterMat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    metalness: 0.6,
-    roughness: 0.35,
-    side: THREE.DoubleSide,
-    envMapIntensity: 1.2
+  // Aluminum heat sink — bright silver, high metallic, low roughness
+  var heatsinkMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0.90, 0.91, 0.92),
+    metalness: 0.85,
+    roughness: 0.18,
+    side: THREE.DoubleSide
   });
 
-  var afterMesh = new THREE.Mesh(afterGeom, afterMat);
-  afterMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
-  scenes[1].add(afterMesh);
-  meshes.after.push(afterMesh);
+  // Epoxy body — deep matte black
+  var bodyMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0.03, 0.03, 0.04),
+    metalness: 0.0,
+    roughness: 0.8,
+    side: THREE.DoubleSide
+  });
 
-  console.log('v14 | leads=' + nL + ' body=' + nB + ' heatsink=' + nH);
+  // Copper/tin leads — warm metallic
+  var leadsMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0.82, 0.58, 0.30),
+    metalness: 0.9,
+    roughness: 0.15,
+    side: THREE.DoubleSide
+  });
+
+  var hsMesh = buildZoneMesh(heatsinkIdx, heatsinkMat);
+  var bdMesh = buildZoneMesh(bodyIdx, bodyMat);
+  var ldMesh = buildZoneMesh(leadsIdx, leadsMat);
+
+  scenes[1].add(hsMesh);
+  scenes[1].add(bdMesh);
+  scenes[1].add(ldMesh);
+  meshes.after.push(hsMesh, bdMesh, ldMesh);
+
+  console.log('v15 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
 }
 
 function animate() {
