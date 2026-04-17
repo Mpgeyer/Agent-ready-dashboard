@@ -244,19 +244,20 @@ function loadSTL() {
     return mesh;
   }
 
-  // Aluminum heat sink — bright silver, high metallic, low roughness
+  // Aluminum heat sink — from Cosmos transfer: RGB(142,149,146) to (150,169,182)
   var heatsinkMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.90, 0.91, 0.92),
-    metalness: 0.85,
-    roughness: 0.18,
+    color: new THREE.Color(0.56, 0.59, 0.57),
+    metalness: 0.80,
+    roughness: 0.25,
+    envMapIntensity: 1.0,
     side: THREE.DoubleSide
   });
 
-  // Epoxy body — deep matte black
+  // PCB body — from Cosmos transfer: RGB(4,93,35) to (10,88,35) — GREEN
   var bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.03, 0.03, 0.04),
+    color: new THREE.Color(0.02, 0.36, 0.14),
     metalness: 0.0,
-    roughness: 0.8,
+    roughness: 0.7,
     side: THREE.DoubleSide
   });
 
