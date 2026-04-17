@@ -42,7 +42,7 @@ canvas { display: block; }
 
 <div class="header">
   <div>
-    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v26</span></h1>
+    <h1>⚡ AI Material Agent — AOI Inspection Pipeline <span id="version-tag" class="version-tag">v27</span></h1>
     <div class="subtitle">STEP → STL → SimReady USD → VLM Material Classification | All Local, No NVCF</div>
   </div>
   <div class="nvidia-badge">NVIDIA</div>
@@ -117,8 +117,7 @@ function init() {
     renderer.setSize(w, h);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
-    renderer.toneMapping = THREE.LinearToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMapping = THREE.NoToneMapping;
     renderer.outputEncoding = THREE.sRGBEncoding;
 
     // Procedural studio environment map (like Omniverse default)
@@ -150,21 +149,21 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    // Light ambient — env map provides most indirect light
-    var ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    // Light — bright product lighting
+    var ambient = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambient);
-    var dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    var dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(50, 80, 50);
     scene.add(dirLight);
-    var fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    var fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
     if (i === 1) {
-      var topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      var topLight = new THREE.DirectionalLight(0xffffff, 0.6);
       topLight.position.set(0, 100, 0);
       scene.add(topLight);
-      var rimLight = new THREE.DirectionalLight(0xfff0e0, 0.6);
+      var rimLight = new THREE.DirectionalLight(0xffffff, 0.4);
       rimLight.position.set(-50, 10, 50);
       scene.add(rimLight);
     }
@@ -300,8 +299,8 @@ function loadSTL() {
   scenes[1].add(ldMesh);
   meshes.after.push(hsMesh, bdMesh, ldMesh);
 
-  console.log('v26 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
-  document.getElementById('version-tag').textContent = 'v26 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
+  console.log('v27 | leads=' + leadsIdx.length + ' body=' + bodyIdx.length + ' heatsink=' + heatsinkIdx.length);
+  document.getElementById('version-tag').textContent = 'v27 | L:' + leadsIdx.length + ' B:' + bodyIdx.length + ' H:' + heatsinkIdx.length;
 }
 
 function animate() {
