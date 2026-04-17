@@ -253,7 +253,7 @@ function loadSTL() {
     'Faces: leads=' + nL + ' body=' + nB + ' heatsink=' + nH + ' total=' + faceCount
   ];
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;bottom:10px;left:10px;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px 12px;border-radius:6px;z-index:9999;white-space:pre;';
+  overlay.style.cssText = 'position:fixed;top:80px;left:10px;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px 12px;border-radius:6px;z-index:9999;white-space:pre;';
   overlay.textContent = info.join('\n');
   document.body.appendChild(overlay);
   console.log(info.join('\n'));
