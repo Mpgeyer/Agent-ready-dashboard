@@ -125,23 +125,23 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    var ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    var ambient = new THREE.AmbientLight(0xffffff, 0.9);
     scene.add(ambient);
-    var dirLight = new THREE.DirectionalLight(0xfff8f0, 1.2);
+    var dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
     dirLight.position.set(50, 80, 50);
     scene.add(dirLight);
-    var fillLight = new THREE.DirectionalLight(0xe8e0d8, 0.4);
+    var fillLight = new THREE.DirectionalLight(0xffffff, 0.7);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
     if (i === 1) {
-      var topLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      var topLight = new THREE.DirectionalLight(0xffffff, 1.2);
       topLight.position.set(0, 100, 0);
       scene.add(topLight);
-      var rimLight = new THREE.DirectionalLight(0xfff0e0, 0.5);
+      var rimLight = new THREE.DirectionalLight(0xfff0e0, 0.8);
       rimLight.position.set(-50, 10, 50);
       scene.add(rimLight);
-      var backLight = new THREE.DirectionalLight(0xe0e8ff, 0.3);
+      var backLight = new THREE.DirectionalLight(0xe0e8ff, 0.6);
       backLight.position.set(30, 40, -60);
       scene.add(backLight);
     }
@@ -244,20 +244,20 @@ function loadSTL() {
     return mesh;
   }
 
-  // Aluminum heat sink — from Cosmos transfer: RGB(142,149,146) to (150,169,182)
+  // Aluminum heat sink — bright brushed aluminum
   var heatsinkMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.56, 0.59, 0.57),
-    metalness: 0.80,
-    roughness: 0.25,
-    envMapIntensity: 1.0,
+    color: new THREE.Color(0.85, 0.86, 0.88),
+    metalness: 0.85,
+    roughness: 0.22,
+    envMapIntensity: 1.5,
     side: THREE.DoubleSide
   });
 
-  // PCB body — from Cosmos transfer: RGB(4,93,35) to (10,88,35) — GREEN
+  // Black epoxy body — matte dark
   var bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.02, 0.36, 0.14),
+    color: new THREE.Color(0.04, 0.04, 0.05),
     metalness: 0.0,
-    roughness: 0.7,
+    roughness: 0.85,
     side: THREE.DoubleSide
   });
 
