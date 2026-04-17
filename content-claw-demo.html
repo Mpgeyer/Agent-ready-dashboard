@@ -117,7 +117,32 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.6;
+    renderer.toneMappingExposure = 1.2;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.physicallyCorrectLights = true;
+
+    // Procedural studio environment map (like Omniverse default)
+    var pmremGen = new THREE.PMREMGenerator(renderer);
+    pmremGen.compileEquirectangularShader();
+    var envScene = new THREE.Scene();
+    envScene.background = new THREE.Color(0.3, 0.3, 0.32);
+    // Soft studio box: 6 emissive panels
+    var panelGeo = new THREE.PlaneGeometry(200, 200);
+    var topPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(2.5, 2.5, 2.8), side: THREE.DoubleSide}));
+    topPanel.position.set(0, 80, 0); topPanel.rotation.x = Math.PI / 2; envScene.add(topPanel);
+    var frontPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(1.5, 1.5, 1.6), side: THREE.DoubleSide}));
+    frontPanel.position.set(0, 0, -80); envScene.add(frontPanel);
+    var backPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(0.8, 0.75, 0.7), side: THREE.DoubleSide}));
+    backPanel.position.set(0, 0, 80); envScene.add(backPanel);
+    var leftPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(1.0, 1.0, 1.1), side: THREE.DoubleSide}));
+    leftPanel.position.set(-80, 0, 0); leftPanel.rotation.y = Math.PI / 2; envScene.add(leftPanel);
+    var rightPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(0.6, 0.55, 0.5), side: THREE.DoubleSide}));
+    rightPanel.position.set(80, 0, 0); rightPanel.rotation.y = Math.PI / 2; envScene.add(rightPanel);
+    var floorPanel = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({color: new THREE.Color(0.15, 0.15, 0.15), side: THREE.DoubleSide}));
+    floorPanel.position.set(0, -80, 0); floorPanel.rotation.x = Math.PI / 2; envScene.add(floorPanel);
+    var envMap = pmremGen.fromScene(envScene, 0.04).texture;
+    scene.environment = envMap;
+    pmremGen.dispose();
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -125,25 +150,20 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    var ambient = new THREE.AmbientLight(0xffffff, 0.35);
+    // Reduced ambient — env map now provides indirect light
+    var ambient = new THREE.AmbientLight(0xffffff, 0.1);
     scene.add(ambient);
-    var dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    var dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
     dirLight.position.set(50, 80, 50);
     scene.add(dirLight);
-    var fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    var fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
     if (i === 1) {
-      var topLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      topLight.position.set(0, 100, 0);
-      scene.add(topLight);
       var rimLight = new THREE.DirectionalLight(0xfff0e0, 0.8);
       rimLight.position.set(-50, 10, 50);
       scene.add(rimLight);
-      var backLight = new THREE.DirectionalLight(0xe0e8ff, 0.6);
-      backLight.position.set(30, 40, -60);
-      scene.add(backLight);
     }
 
     var grid = new THREE.GridHelper(100, 20, 0x333333, 0x222222);
@@ -246,26 +266,28 @@ function loadSTL() {
 
   // Aluminum heat sink — bright brushed aluminum
   var heatsinkMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.85, 0.86, 0.88),
-    metalness: 0.85,
-    roughness: 0.22,
+    color: new THREE.Color(0.88, 0.89, 0.91),
+    metalness: 0.92,
+    roughness: 0.18,
     envMapIntensity: 1.5,
     side: THREE.DoubleSide
   });
 
-  // Black epoxy body — deep matte black
+  // Component body — dark green (from Cosmos transfer)
   var bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.015, 0.015, 0.02),
+    color: new THREE.Color(0.02, 0.28, 0.12),
     metalness: 0.0,
-    roughness: 0.95,
+    roughness: 0.65,
+    envMapIntensity: 0.4,
     side: THREE.DoubleSide
   });
 
   // Copper/tin leads — warm metallic
   var leadsMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.82, 0.58, 0.30),
-    metalness: 0.9,
-    roughness: 0.15,
+    color: new THREE.Color(0.85, 0.60, 0.28),
+    metalness: 0.92,
+    roughness: 0.12,
+    envMapIntensity: 1.5,
     side: THREE.DoubleSide
   });
 
