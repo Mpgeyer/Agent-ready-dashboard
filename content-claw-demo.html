@@ -125,12 +125,12 @@ function init() {
     controls.autoRotate = true;
     controls.autoRotateSpeed = 1.5;
 
-    var ambient = new THREE.AmbientLight(0xffffff, 0.9);
+    var ambient = new THREE.AmbientLight(0xffffff, 0.35);
     scene.add(ambient);
-    var dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    var dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
     dirLight.position.set(50, 80, 50);
     scene.add(dirLight);
-    var fillLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    var fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
     fillLight.position.set(-30, 20, -40);
     scene.add(fillLight);
 
@@ -253,11 +253,11 @@ function loadSTL() {
     side: THREE.DoubleSide
   });
 
-  // Black epoxy body — matte dark
+  // Black epoxy body — deep matte black
   var bodyMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0.04, 0.04, 0.05),
+    color: new THREE.Color(0.015, 0.015, 0.02),
     metalness: 0.0,
-    roughness: 0.85,
+    roughness: 0.95,
     side: THREE.DoubleSide
   });
 
