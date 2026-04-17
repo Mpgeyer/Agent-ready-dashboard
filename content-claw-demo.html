@@ -246,17 +246,7 @@ function loadSTL() {
   scenes[1].add(afterMesh);
   meshes.after.push(afterMesh);
 
-  // Debug overlay
-  var info = [
-    'v14 | Raw BB: X=[' + rawMinX.toFixed(1) + ',' + rawMaxX.toFixed(1) + '] Y=[' + rawMinY.toFixed(1) + ',' + rawMaxY.toFixed(1) + '] Z=[' + rawMinZ.toFixed(1) + ',' + rawMaxZ.toFixed(1) + ']',
-    'Center: (' + cx.toFixed(1) + ',' + cy.toFixed(1) + ',' + cz.toFixed(1) + ') | leadsX<' + leadsThreshX.toFixed(1) + ' bodyZ>' + bodyThreshZ.toFixed(1),
-    'Faces: leads=' + nL + ' body=' + nB + ' heatsink=' + nH + ' total=' + faceCount
-  ];
-  var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:80px;left:10px;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px 12px;border-radius:6px;z-index:9999;white-space:pre;';
-  overlay.textContent = info.join('\n');
-  document.body.appendChild(overlay);
-  console.log(info.join('\n'));
+  console.log('v14 | leads=' + nL + ' body=' + nB + ' heatsink=' + nH);
 }
 
 function animate() {
